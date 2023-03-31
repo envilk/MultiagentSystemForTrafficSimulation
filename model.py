@@ -19,7 +19,7 @@ class TrafficModel(mesa.Model):
 
         # Inverted width and height order, because of matrix accessing purposes, like in many examples:
         #   https://snyk.io/advisor/python/Mesa/functions/mesa.space.MultiGrid
-        self.grid = mesa.space.MultiGrid(height, width, True)
+        self.grid = mesa.space.MultiGrid(height, width, False)
         self.max_steps = max_steps
         self.max_waiting_time_non_transitable_in_steps = 10
         self.schedule = mesa.time.BaseScheduler(self)
@@ -81,35 +81,44 @@ class TrafficModel(mesa.Model):
         amount_traffic_lights = 0
         for x, row in enumerate(reversed(self.restriction_matrix)):
             for y, cell in enumerate(row):
-                X = self.height - x - 1 # accessing rows from bottom to top
+                X = self.height - x - 1  # accessing rows from bottom to top
                 if cell != -1:
-                    unique_id = (x * self.width) + y # 'normal' x for index purposes
+                    unique_id = (x * self.width) + y  # 'normal' x for index purposes
                     self.last_unique_id = unique_id
                     new_traffic_light = TrafficLightAgent(unique_id, self, [0, 0])
-                    if self.cell_needs_traffic_light([X, y]):
+                    crossing, _ = self.crossing_adjacent([X, y])
+                    if crossing:
                         self.schedule.add(new_traffic_light)
-                        self.grid.place_agent(new_traffic_light, [x, y]) # 'normal' x for grid
+                        self.grid.place_agent(new_traffic_light, [x, y])  # 'normal' x for grid
                         amount_traffic_lights += 1
         return amount_traffic_lights
 
     def is_transitable(self, pos):
         transitable = False
-        if self.restriction_matrix[pos[0]][pos[1]] != -1:
+        if self.restriction_matrix[self.height - pos[0] - 1][pos[1]] != -1:
             transitable = True
         return transitable
+
+    def check_limits(self, pos):
+        inside = False
+        if pos[0] < 0 or pos[0] > self.height or pos[1] < 0 or pos[1] > self.width:
+            inside = True
+        return inside
 
     # when calling method, take care of returned value
     def get_direction(self, pos):
         direction = -1
         if self.is_transitable(pos):
-            direction = self.restriction_matrix[pos[0]][pos[1]]
+            direction = self.restriction_matrix[self.height - pos[0] - 1][pos[1]]
         return direction
 
-    # checks subtractions of an actual cell direction and
-    # the crossing adjacent (if actual dir is right, then adjacent cell is matrix[x][y+1],
-    # plus if abs(subtraction) is 2, then actual cell needs a traffic light
-    def cell_needs_traffic_light(self, pos):
-        needs = False
+    # Possible uses:
+    # 1: checks subtractions of an actual cell direction and
+    #    the crossing adjacent (if actual dir is right, then adjacent cell is matrix[x][y+1],
+    #    plus if abs(subtraction) is 2, then actual cell needs a traffic light
+    # 2: obtains the position of the cell that the one passed by parameters is pointing to
+    def crossing_adjacent(self, pos):
+        crossing = False
         actual_dir = self.restriction_matrix[pos[0]][pos[1]]
         crossing_pos = []
         if actual_dir == 0:  # right
@@ -123,21 +132,21 @@ class TrafficModel(mesa.Model):
 
         # if adjacent is empty, then it is non transitable, not enter if statement
         # if adjacent is out of map limit, not enter if statement
-        if crossing_pos and crossing_pos[0] < self.height and crossing_pos[1] < self.width\
-            and crossing_pos[0] > -1 and crossing_pos[1] > -1:
+        if crossing_pos and crossing_pos[0] < self.height and crossing_pos[1] < self.width \
+                and crossing_pos[0] > -1 and crossing_pos[1] > -1:
             subtraction = abs(actual_dir - self.restriction_matrix[crossing_pos[0]][crossing_pos[1]])
             # 3 because of checking the case where dirs are 0 and 3 (right and up, independent of the order)
             if subtraction == 1 or subtraction == 3:
-                needs = True
+                crossing = True
 
-        return needs
+        return crossing, crossing_pos
 
     def show_grid(self):
         agent_counts = np.zeros((self.grid.width, self.grid.height))
         for cell in self.grid.coord_iter():
             cell_content, x, y = cell
             agent_count = len(cell_content)
-            X = self.height - x - 1 # Access from bottom to top
+            X = self.height - x - 1  # Access from bottom to top
             agent_counts[X][y] = agent_count
         plt.imshow(agent_counts, interpolation="nearest")
         plt.colorbar()
@@ -145,13 +154,12 @@ class TrafficModel(mesa.Model):
 
     def step(self):
         # First, introduce all vehicles in the grid
+        self.schedule.step()
         if self.agents_list:
             a = self.agents_list.pop(0)
             self.schedule.add(a)
             self.grid.place_agent(a, (0, 0))
-        self.schedule.step()
         self.show_grid()
-
 
 model = TrafficModel(6, 6, 10, 6, 10)  # width, height, max_steps, non_transitable_cells, vehicles
 
