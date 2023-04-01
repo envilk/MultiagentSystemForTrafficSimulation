@@ -2,22 +2,32 @@
 The full code should now look like:
 """
 import mesa
-from model import MoneyModel
+from model import TrafficModel
+from agents import TrafficLightAgent, VehicleAgent
+from overload_canvas_grid import CanvasGrid
+
 
 def agent_portrayal(agent):
-    portrayal = {
-        "Shape": "circle",
-        "Filled": "true",
-        "Layer": 0,
-        "Color": "red",
-        "r": 0.5,
-    }
+    portrayal = {"Shape": "circle",
+                 "Filled": "true",
+                 "r": 1}
+
+    if type(agent) is TrafficLightAgent:
+        portrayal["Color"] = "yellow"
+        portrayal["Layer"] = 0
+    elif type(agent) is VehicleAgent:
+        portrayal["Color"] = "grey"
+        portrayal["Layer"] = 1
+        portrayal["r"] = 0.2
     return portrayal
 
-
-grid = mesa.visualization.CanvasGrid(agent_portrayal, 10, 10, 500, 500)
+width = 6
+height = 7
+# in python [height, width] for grid, in js [width, height]
+grid = CanvasGrid(agent_portrayal, width, height, 500, 500)
 server = mesa.visualization.ModularServer(
-    MoneyModel, [grid], "Money Model", {"N": 100, "width": 10, "height": 10}
+    TrafficModel, [grid], "Money Model", {"width": width, "height": height, "max_steps": 10,
+                                          "non_transitable_cells": 6,  "vehicles": 10}
 )
 server.port = 8521  # The default
 server.launch()

@@ -74,6 +74,7 @@ class TrafficModel(mesa.Model):
                 [3, -1, -1, 1, 0, 1],
                 [3, -1, -1, 0, 0, 3],
                 [2, 2, 3, 2, -1, 3],
+                [0, 0, 0, 3, 0, 1],
                 [0, 0, 0, 3, 0, 1]]
 
     # method for automatically setting traffic lights
@@ -159,9 +160,9 @@ class TrafficModel(mesa.Model):
             a = self.agents_list.pop(0)
             self.schedule.add(a)
             self.grid.place_agent(a, (0, 0))
-        self.show_grid()
+        #self.show_grid()
 
-model = TrafficModel(6, 6, 10, 6, 10)  # width, height, max_steps, non_transitable_cells, vehicles
+model = TrafficModel(6, 7, 10, 6, 10)  # width, height, max_steps, non_transitable_cells, vehicles
 
 for i in range(model.max_steps):
     model.step()
