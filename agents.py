@@ -29,7 +29,6 @@ class TrafficLightAgent(mesa.Agent):
                 self.time_red_counter = self.time_red_counter - 1
             elif self.time_red_counter == 0:
                 self.time_green_counter = self.time_green
-        #print(self.unique_id, self.time_green_counter, self.time_red_counter)
 
 
 class VehicleAgent(mesa.Agent):
@@ -40,32 +39,29 @@ class VehicleAgent(mesa.Agent):
         # starts at bottom left cell, like specified in mesa Docs,
         # MultiGrid has position [0, 0] in the bottom-left, and
         # [width-1, height-1] in the top-right
+        self.waiting_for_cars = 0
+        self.waiting_traffic_lights = 0
 
     def move(self):
-        # TODO
-        # 1: Check for traffic lights
-        # 2: Check whether there are cars in neighborhood
-        # 3: Check if cell where vehicle is moving is transitable
-        # 4: move
-        # ?
         direction = self.model.get_direction(self.pos)
         possible_steps = self.model.grid.get_neighborhood(
             self.pos, moore=False, include_center=False
         )
-
         # 1: check for traffic lights in actual self.pos
         traffic_light, state = self.traffic_light()
         # code can keep going checking if vehicle can move,
         # if there is not a traffic light, or there is one but is green
         if not traffic_light or (traffic_light and state):
             definitive_possible_steps = self.obtain_possible_steps_from_restriction_matrix(direction, possible_steps)
-
-            #not_vehicle_in_front =
             if definitive_possible_steps:
                 new_position = random.choice(definitive_possible_steps)
-                self.model.grid.move_agent(self, tuple(new_position))
-        elif traffic_light and not state: # there is a traffic light, and it's red
-            print('Count waiting time for certain vehicle, in a traffic light')
+                if self.model.is_transitable(new_position):
+                    if not self.vehicle(new_position):
+                        self.model.grid.move_agent(self, tuple(new_position))
+                    else:  # Count waiting time for certain vehicle, because another vehicle in the cell
+                        self.waiting_for_cars = + 1
+        elif traffic_light and not state:  # there is a traffic light, and it's red
+            self.waiting_traffic_lights = + 1
 
     def obtain_possible_steps_from_restriction_matrix(self, direction, possible_steps):
         definitive_possible_steps = []
@@ -87,6 +83,14 @@ class VehicleAgent(mesa.Agent):
                 if not self.model.check_limits(aux):
                     definitive_possible_steps.append(aux)
         return definitive_possible_steps
+
+    def vehicle(self, pos):
+        vehicle = False
+        cellmates = self.model.grid.get_cell_list_contents([tuple(pos)])
+        for a in cellmates:
+            if type(a) is agents.VehicleAgent:
+                vehicle = True
+        return vehicle
 
     def traffic_light(self):
         traffic_light = False

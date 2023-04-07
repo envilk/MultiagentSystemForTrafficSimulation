@@ -6,30 +6,46 @@ import mesa
 from agents import TrafficLightAgent, VehicleAgent
 import matplotlib.pyplot as plt
 import numpy as np
+import random
 
 
 class TrafficModel(mesa.Model):
     """A model with some number of agents."""
 
+    def compute_waiting_time_for_vehicles_in_front(self):
+        waiting_for_vehicles_in_front = [agent.waiting_for_cars for agent in self.schedule.agents if type(agent) is VehicleAgent]
+        return sum(waiting_for_vehicles_in_front)
+
+    def compute_total_waiting_time_traffic_lights(self):
+        waiting_traffic_lights = [agent.waiting_traffic_lights for agent in self.schedule.agents if type(agent) is VehicleAgent]
+        return sum(waiting_traffic_lights)
+
+    def compute_total_waiting_time(self):
+        waiting_for_vehicles_in_front = [agent.waiting_for_cars for agent in self.schedule.agents if type(agent) is VehicleAgent]
+        waiting_traffic_lights = [agent.waiting_traffic_lights for agent in self.schedule.agents if type(agent) is VehicleAgent]
+        total_waiting_time = sum(waiting_for_vehicles_in_front) + sum(waiting_traffic_lights)
+        return total_waiting_time
+
     def __init__(self, width, height, max_steps, non_transitable_cells,
-                 vehicles):
+                 vehicles, max_waiting_time_non_transitable_in_steps):
         self.width = width
         self.height = height
-        self.restriction_matrix = self.generate_matrix()
+        self.restriction_matrix = []
 
         # Inverted width and height order, because of matrix accessing purposes, like in many examples:
         #   https://snyk.io/advisor/python/Mesa/functions/mesa.space.MultiGrid
         self.grid = mesa.space.MultiGrid(height, width, False)
         self.max_steps = max_steps
-        self.max_waiting_time_non_transitable_in_steps = 10
+        self.max_waiting_time_non_transitable_in_steps = max_waiting_time_non_transitable_in_steps
         self.schedule = mesa.time.BaseScheduler(self)
 
         self.total_amount_cells = width * height
-        self.non_transitable_cells = 7
-        # self.non_transitable_cells = int((non_transitable_cells / 100) *
-        #                                self.total_amount_cells)
+        self.steps_counter = 0
+        self.non_transitable_cells = int((non_transitable_cells / 100) *
+                                        self.total_amount_cells)
         self.transitable_cells = self.total_amount_cells - self.non_transitable_cells
 
+        self.generate_matrix()
         self.total_amount_vehicles = int((vehicles / 100) *
                                          self.transitable_cells)
         self.total_amount_traffic_lights = self.set_traffic_lights()
@@ -47,35 +63,52 @@ class TrafficModel(mesa.Model):
             a = VehicleAgent(unique_id, self)
             self.agents_list.append(a)
 
+        # Traffic light and vehicle in front waiting time
+        self.datacollector = mesa.DataCollector(
+            model_reporters={"Total waiting time for vehicles": self.compute_total_waiting_time,
+                             "Waiting time for vehicles in front": self.compute_waiting_time_for_vehicles_in_front,
+                             "Waiting time for traffic lights": self.compute_total_waiting_time_traffic_lights}
+        )
+
     # TODO al generar tener en cuenta 70% recto, 30% izq der, teniendo en cuenta
     # dentro de cada casilla de la que se procede (si en la casilla
     # actual hay dirección de la derecha, pues habrá que tener en cuenta
     # el vecino de la izquierda para ir recto, izq y der serían direcciones arriba
     # y abajo respectivamente)
-    # TODO hay que explicar de alguna manera que una matriz(lista de listas)/numppy array
-    # se acceden de la misma manera, siendo [0, 0] la esquina de arriba a la izquierda,
-    # mientras que en el grid, la [0, 0] es la de abajo a la izauierda. Por tanto, cuando
-    # se itera con un doble bucle anidado, la x (bucle de fuera), corresponde con la fila/lista,
-    # y la y (bucle de dentro), se corresponde con el elemento de esa fila/lista. En ese bucle,
-    # para el grid se accede con [x, y], para las matrices/numpy arrays, [height - x - 1].
-    # por esta razón, para la generación y acceso de matrices/numpy arrays, habrá que utilizar
-    # un método, y para el grid otro (sin modificaciones).
     def generate_matrix(self):
         # creada de la misma manera que un numpy array (matrix[width][height]), y uso de
         # reversed para iterarla
-        # -1: Non transitable
-        # 0: right
-        # 1: down
-        # 2: left
-        # 3: up
-        # TODO hace que la casilla [height - x - 1][0] siempre sea transitable
-        return [[2, 3, 0, 1, 1, 2],
-                [3, -1, -1, 3, 3, 3],
-                [3, -1, -1, 1, 0, 1],
-                [3, -1, -1, 0, 0, 3],
-                [2, 2, 3, 2, -1, 3],
-                [0, 0, 0, 3, 0, 1],
-                [0, 0, 0, 3, 0, 1]]
+        self.restriction_matrix = []
+        non_transitable_cells_counter = 0
+
+        for x in range(0, self.height):
+            row = [0] * self.width
+            for y in range(0, self.width):
+                if x == self.height - 1 and y == 0:  # beginning cell
+                    row[y] = 0  # first direction and cell is right and transitable
+                else:
+                    if random.random() <= 0.15 and non_transitable_cells_counter < self.non_transitable_cells:  # 15% probability to have a cell non transitable
+                        row[y] = -1
+                        non_transitable_cells_counter = + 1
+                    else:
+                        row[y] = 0
+            self.restriction_matrix.append(row)
+
+        previous_direction = 0
+
+        for x, row in enumerate(reversed(self.restriction_matrix)):
+            for y, cell in enumerate(row):
+                if x == 0 and y == 0:
+                    previous_direction = 0
+                elif cell != -1:
+                    if random.random() <= 0.80:
+                        self.restriction_matrix[x][y] = previous_direction
+                    elif random.random() <= 0.90:
+                        self.restriction_matrix[x][y] = (previous_direction - 1) % 4
+                    else:
+                        self.restriction_matrix[x][y] = abs(previous_direction + 1) % 4
+
+                previous_direction = self.restriction_matrix[x][y]
 
     # method for automatically setting traffic lights
     def set_traffic_lights(self):
@@ -88,7 +121,7 @@ class TrafficModel(mesa.Model):
                     self.last_unique_id = unique_id
                     new_traffic_light = TrafficLightAgent(unique_id, self, [0, 0])
                     crossing, _ = self.crossing_adjacent([X, y])
-                    if crossing:
+                    if crossing and random.random() <= 0.5:
                         self.schedule.add(new_traffic_light)
                         self.grid.place_agent(new_traffic_light, [x, y])  # 'normal' x for grid
                         amount_traffic_lights += 1
@@ -154,15 +187,12 @@ class TrafficModel(mesa.Model):
         plt.show()
 
     def step(self):
-        # First, introduce all vehicles in the grid
-        self.schedule.step()
-        if self.agents_list:
-            a = self.agents_list.pop(0)
-            self.schedule.add(a)
-            self.grid.place_agent(a, (0, 0))
-        #self.show_grid()
-
-model = TrafficModel(6, 7, 10, 6, 10)  # width, height, max_steps, non_transitable_cells, vehicles
-
-for i in range(model.max_steps):
-    model.step()
+        if self.steps_counter < self.max_steps:
+            self.datacollector.collect(self)
+            # First, introduce all vehicles in the grid
+            self.schedule.step()
+            if self.agents_list:
+                a = self.agents_list.pop(0)
+                self.schedule.add(a)
+                self.grid.place_agent(a, (0, 0))
+            # self.show_grid()
