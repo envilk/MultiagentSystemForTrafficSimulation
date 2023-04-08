@@ -8,6 +8,7 @@ from agents import TrafficLightAgent, VehicleAgent
 from overload_canvas_grid import CanvasGrid
 
 
+# creates agent dictionary for rendering it on Canvas Gird
 def agent_portrayal(agent, cell):
     portrayal = {"Shape": "rect", "Filled": "true", "h": 1, "w": 1}
     if cell == -1:
@@ -30,6 +31,7 @@ def agent_portrayal(agent, cell):
 width = 24
 height = 12
 
+# chart for metrics visualization
 chart = mesa.visualization.ChartModule([{"Label": "Total waiting time for vehicles",
                                          "Color": "Black"},
                                         {"Label": "Waiting time for vehicles in front",
@@ -41,6 +43,7 @@ chart = mesa.visualization.ChartModule([{"Label": "Total waiting time for vehicl
 
 # in python [height, width] for grid, in js [width, height]
 grid = CanvasGrid(agent_portrayal, width, height, 35 * width, 35 * height)
+# initizalize Modular server for mesa Python visualization
 server = mesa.visualization.ModularServer(
     TrafficModel, [grid, chart], "Traffic Model", {"width": width, "height": height, "max_steps": 100,
                                                    "non_transitable_cells": 10, "vehicles": 5,

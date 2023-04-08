@@ -32,6 +32,7 @@ class TrafficModel(mesa.Model):
     def __init__(self, width, height, max_steps, non_transitable_cells,
                  vehicles, max_waiting_time_non_transitable_in_steps,
                  second_scenario = False, third_scenario = False):
+        # global parameters, and scenarios
         self.counter = 0
         self.width = width
         self.height = height
@@ -39,6 +40,7 @@ class TrafficModel(mesa.Model):
         self.second_scenario = second_scenario
         self.third_scenario = third_scenario
 
+        # grid and global parameters
         # Inverted width and height order, because of matrix accessing purposes, like in many examples:
         #   https://snyk.io/advisor/python/Mesa/functions/mesa.space.MultiGrid
         self.grid = mesa.space.MultiGrid(height, width, False)
@@ -46,6 +48,7 @@ class TrafficModel(mesa.Model):
         self.max_waiting_time_non_transitable_in_steps = max_waiting_time_non_transitable_in_steps
         self.schedule = mesa.time.BaseScheduler(self)
 
+        # global parameters
         self.total_amount_cells = width * height
         self.steps_counter = 0
         self.non_transitable_cells_percentage = non_transitable_cells
@@ -53,6 +56,7 @@ class TrafficModel(mesa.Model):
                                          self.total_amount_cells)
         self.transitable_cells = self.total_amount_cells - self.non_transitable_cells
 
+        # generating matrix, and global parameters
         self.generate_matrix()
         self.total_amount_vehicles = int((vehicles / 100) *
                                          self.transitable_cells)
@@ -78,11 +82,10 @@ class TrafficModel(mesa.Model):
                              "Waiting time for traffic lights": self.compute_total_waiting_time_traffic_lights}
         )
 
-    # TODO al generar tener en cuenta 70% recto, 30% izq der, teniendo en cuenta
-    # dentro de cada casilla de la que se procede (si en la casilla
-    # actual hay dirección de la derecha, pues habrá que tener en cuenta
-    # el vecino de la izquierda para ir recto, izq y der serían direcciones arriba
-    # y abajo respectivamente)
+    # generates a matrix with random directions, following a concrete criteria. A cell gets
+    # a concrete position from de beginning (right), then with a 80% of probabilities, direction
+    # on next cell keeps straight, with a 10% goes to the left, and with 10% to the right (both
+    # with respect to the straight direction)
     def generate_matrix(self):
         non_transitable_cells_counter = 0
         previous_direction = 0
@@ -109,7 +112,7 @@ class TrafficModel(mesa.Model):
 
         # self.restriction_matrix = [[0, 0, 0, 0, 3, 2, 1, 1, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, -1, 2, 2, -1, 2, 2, 2, 2], [2, 2, 2, 2, 2, 2, 1, 0, 0, 3, 2, 2, 2, 2, 1, 1, 1, 0, 0, 0, 0, 0, -1, 0], [0, 0, 1, 0, 3, 3, 3, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, -1], [-1, 1, -1, 1, 1, -1, 1, 1, 0, 3, -1, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 2, 2, 1], [1, 0, 0, 0, -1, 0, 0, 0, 3, 3, -1, 3, 3, 3, 3, 2, 2, 2, 1, 1, 1, 1, -1, 0], [0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 3, 3, 3, 3, 2, 1, -1, 1, 1, 1, 1, 1, 0], [0, 0, 3, 3, 3, 3, 3, 3, 2, 1, 1, -1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 3, 2, 2, 2, 2, 2, 1, 1, 1, 1, 0, 0, 0, 0], [0, 3, 3, 3, 3, 3, 3, 3, -1, 2, 2, 2, -1, 1, 1, 1, 1, 1, 0, -1, 0, 0, 0, 3], [3, 2, 2, 2, 2, 1, 1, -1, 1, 0, 3, 3, 3, -1, 3, 3, 3, 3, 3, 2, 2, 2, 2, 1], [0, 0, 3, -1, 3, 2, 2, 2, 2, 2, 2, -1, 2, 2, 2, 2, -1, 2, 2, 1, 0, 0, -1, 3]]
 
-    # method for automatically setting traffic lights
+    # method for automatically setting traffic lights on the restriction matrix
     def set_traffic_lights(self):
         amount_traffic_lights = 0
         for x, row in enumerate(reversed(self.restriction_matrix)):
@@ -126,26 +129,28 @@ class TrafficModel(mesa.Model):
                         amount_traffic_lights += 1
         return amount_traffic_lights
 
+    # checks if a concrete cell is transitable (cell != -1) or not
     def is_transitable(self, pos):
         transitable = False
         if self.restriction_matrix[self.height - pos[0] - 1][pos[1]] != -1:
             transitable = True
         return transitable
 
+    # check if concrete cell exceeds restriction matrix limits
     def check_limits(self, pos):
         inside = False
         if pos[0] < 0 or pos[0] > self.height or pos[1] < 0 or pos[1] > self.width:
             inside = True
         return inside
 
-    # when calling method, take care of returned value
+    # returns concrete direction of a certain cell
     def get_direction(self, pos):
         direction = -1
         if self.is_transitable(pos):
             direction = self.restriction_matrix[self.height - pos[0] - 1][pos[1]]
         return direction
 
-    # Possible uses:
+    # Possible uses of this method:
     # 1: checks subtractions of an actual cell direction and
     #    the crossing adjacent (if actual dir is right, then adjacent cell is matrix[x][y+1],
     #    plus if abs(subtraction) is 2, then actual cell needs a traffic light

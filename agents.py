@@ -22,6 +22,9 @@ class TrafficLightAgent(mesa.Agent):
             state = False
         return state
 
+    # checks if there are any vehicles in the actual position of self traffic light,
+    # and in adjacent corners located in the direction of actual position. In case of any
+    # vehicles located in any of described positions, traffic light turns red, otherwise turns green
     def check_for_other_vehicles(self):
         actual_direction = self.model.get_direction(list(self.pos))
 
@@ -37,7 +40,6 @@ class TrafficLightAgent(mesa.Agent):
         in_limits = (first_adjacent[0] in range(self.model.height) and first_adjacent[1] in range(self.model.width)) and \
                         (second_adjacent[0] in range(self.model.height) and second_adjacent[1] in range(self.model.width))
         vehicle_in_actual_cell = self.model.grid.get_cell_list_contents([tuple(aux)])
-
         if in_limits and any(isinstance(a, agents.VehicleAgent) for a in vehicle_in_actual_cell):
             cellmates_first = self.model.grid.get_cell_list_contents([tuple(first_adjacent)])
             cellmates_second = self.model.grid.get_cell_list_contents([tuple(second_adjacent)])
@@ -55,6 +57,8 @@ class TrafficLightAgent(mesa.Agent):
         else:
             self.random_time()
 
+    # allows to turn self traffic light into red, by random waiting time. While self is red,
+    # it isn't green, and viceversa
     def random_time(self):
         if self.time_red_counter == 0:
             self.time_green_counter = max(0, self.time_green_counter - 1)
@@ -84,7 +88,7 @@ class VehicleAgent(mesa.Agent):
         possible_steps = self.model.grid.get_neighborhood(
             self.pos, moore=False, include_center=False
         )
-        # 1: check for traffic lights in actual self.pos
+        # check for traffic lights in actual self.pos
         traffic_light, state = self.traffic_light()
         # code can keep going checking if vehicle can move,
         # if there is not a traffic light, or there is one but is green
@@ -92,6 +96,7 @@ class VehicleAgent(mesa.Agent):
             definitive_possible_steps = self.obtain_possible_steps_from_restriction_matrix(direction, possible_steps)
             if definitive_possible_steps:
                 new_position = random.choice(definitive_possible_steps)
+                # if adjacent random chosen cell is transitable and self vehicle is not parking
                 if self.model.is_transitable(new_position) and not self.parking:
                     self.vehicle_in_front(definitive_possible_steps, new_position)
                 elif self.counter_parking > 0:  # this allows vehicle to park in same cell it found next non
@@ -105,8 +110,11 @@ class VehicleAgent(mesa.Agent):
         elif traffic_light and not state:  # there is a traffic light, and it's red
             self.waiting_traffic_lights += 1
 
-    # this optimization technique is not usefull enough when generating not proper directions for cells,
-    # it would be interesting testing it in proper enviroments
+    # checks if some vehicles in adjacent cell, and if it is the case, tries to
+    # choose another option. If none exist, then vehicle is considered waiting for another
+    # to move, and summed up to a counter.
+    # (this optimization technique is not usefull enough when generating not proper
+    # directions for cells, it would be interesting testing it in proper enviroments)
     def vehicle_in_front(self, definitive_possible_steps, new_position):
         if not self.vehicle(new_position):
             self.model.grid.move_agent(self, tuple(new_position))
@@ -127,7 +135,7 @@ class VehicleAgent(mesa.Agent):
         else:
             self.waiting_for_cars += 1
 
-    # for vehicle to not go in the oposite direction
+    # method for vehicle to not go in the oposite direction
     def check_oposite_direction(self, pos, direction):
         oposite_direction = False
         # 0 is right, checking left, 1 is down, checking up, etc
@@ -141,6 +149,9 @@ class VehicleAgent(mesa.Agent):
 
         return oposite_direction
 
+    # check adjacent possible steps from a certain position. Specifically, not oposite directions
+    # are allowed, nor adjacent cell that crosses actual one, or same directions. Neither allowed
+    # positions that are outside restriction matrix
     def obtain_possible_steps_from_restriction_matrix(self, direction, possible_steps):
         definitive_possible_steps = []
         for adjacent_position in possible_steps:
@@ -163,6 +174,7 @@ class VehicleAgent(mesa.Agent):
                     definitive_possible_steps.append(aux)
         return definitive_possible_steps
 
+    # checks if vehicle is in certain positions
     def vehicle(self, pos):
         vehicle = False
         cellmates = self.model.grid.get_cell_list_contents([tuple(pos)])
@@ -171,6 +183,7 @@ class VehicleAgent(mesa.Agent):
                 vehicle = True
         return vehicle
 
+    # check for the state of a certain traffic light
     def traffic_light(self):
         traffic_light = False
         state = False
