@@ -7,7 +7,7 @@ import agents
 class TrafficLightAgent(mesa.Agent):
     def __init__(self, unique_id, model, pos):
         super().__init__(unique_id, model)
-        self.time_green = random.randint(1, 3)
+        self.time_green = random.randint(1, 10)
         self.time_red = random.randint(1, 10)
         self.time_green_counter = self.time_green
         self.time_red_counter = 0
@@ -63,6 +63,20 @@ class VehicleAgent(mesa.Agent):
         elif traffic_light and not state:  # there is a traffic light, and it's red
             self.waiting_traffic_lights = + 1
 
+    # for vehicle to not go in the opossite direction
+    def check_oposite_direction(self, pos, direction):
+        oposite_direction = False
+        # 0 is right, checking left, 1 is down, checking up, etc
+        pos_x = [0, 1, 0, -1]
+        pos_y = [-1, 0, 1, 0]
+
+        aux = list(self.pos)
+        pos_to_check = [aux[0] + pos_x[direction], aux[1] + pos_y[direction]]
+        if pos_to_check == pos:
+            oposite_direction = True
+
+        return oposite_direction
+
     def obtain_possible_steps_from_restriction_matrix(self, direction, possible_steps):
         definitive_possible_steps = []
         for adjacent_position in possible_steps:
@@ -77,7 +91,9 @@ class VehicleAgent(mesa.Agent):
             crossing_from_adjacent_from_pos_bool = (crossing_from_adjacent_from_pos == aux)
             # revert matrix adaptation, to adapt to grid, DON'T PUT IT BEFORE
             aux[0] = abs(aux[0] - self.model.height + 1)
-            if crossing_from_adjacent != aux2 and abs(direction - adjacent_direction) != 2 and \
+            oposite_direction = self.check_oposite_direction(aux, direction)
+            if not oposite_direction and crossing_from_adjacent != aux2 and \
+                    abs(direction - adjacent_direction) != 2 and \
                     abs(direction - adjacent_direction) != 0 or \
                     crossing_from_adjacent_from_pos_bool:
                 if not self.model.check_limits(aux):

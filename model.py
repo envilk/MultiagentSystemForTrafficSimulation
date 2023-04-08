@@ -13,16 +13,20 @@ class TrafficModel(mesa.Model):
     """A model with some number of agents."""
 
     def compute_waiting_time_for_vehicles_in_front(self):
-        waiting_for_vehicles_in_front = [agent.waiting_for_cars for agent in self.schedule.agents if type(agent) is VehicleAgent]
+        waiting_for_vehicles_in_front = [agent.waiting_for_cars for agent in self.schedule.agents if
+                                         type(agent) is VehicleAgent]
         return sum(waiting_for_vehicles_in_front)
 
     def compute_total_waiting_time_traffic_lights(self):
-        waiting_traffic_lights = [agent.waiting_traffic_lights for agent in self.schedule.agents if type(agent) is VehicleAgent]
+        waiting_traffic_lights = [agent.waiting_traffic_lights for agent in self.schedule.agents if
+                                  type(agent) is VehicleAgent]
         return sum(waiting_traffic_lights)
 
     def compute_total_waiting_time(self):
-        waiting_for_vehicles_in_front = [agent.waiting_for_cars for agent in self.schedule.agents if type(agent) is VehicleAgent]
-        waiting_traffic_lights = [agent.waiting_traffic_lights for agent in self.schedule.agents if type(agent) is VehicleAgent]
+        waiting_for_vehicles_in_front = [agent.waiting_for_cars for agent in self.schedule.agents if
+                                         type(agent) is VehicleAgent]
+        waiting_traffic_lights = [agent.waiting_traffic_lights for agent in self.schedule.agents if
+                                  type(agent) is VehicleAgent]
         total_waiting_time = sum(waiting_for_vehicles_in_front) + sum(waiting_traffic_lights)
         return total_waiting_time
 
@@ -41,8 +45,9 @@ class TrafficModel(mesa.Model):
 
         self.total_amount_cells = width * height
         self.steps_counter = 0
+        self.non_transitable_cells_percentage = non_transitable_cells
         self.non_transitable_cells = int((non_transitable_cells / 100) *
-                                        self.total_amount_cells)
+                                         self.total_amount_cells)
         self.transitable_cells = self.total_amount_cells - self.non_transitable_cells
 
         self.generate_matrix()
@@ -78,7 +83,6 @@ class TrafficModel(mesa.Model):
     def generate_matrix(self):
         # creada de la misma manera que un numpy array (matrix[width][height]), y uso de
         # reversed para iterarla
-        self.restriction_matrix = []
         non_transitable_cells_counter = 0
 
         for x in range(0, self.height):
@@ -87,19 +91,22 @@ class TrafficModel(mesa.Model):
                 if x == self.height - 1 and y == 0:  # beginning cell
                     row[y] = 0  # first direction and cell is right and transitable
                 else:
-                    if random.random() <= 0.15 and non_transitable_cells_counter < self.non_transitable_cells:  # 15% probability to have a cell non transitable
+                    if random.random() <= (self.non_transitable_cells_percentage/100) \
+                            and non_transitable_cells_counter < self.non_transitable_cells:
                         row[y] = -1
-                        non_transitable_cells_counter = + 1
+                        non_transitable_cells_counter += 1
                     else:
-                        row[y] = 0
+                        row[y] = random.choice([0, 1, 2, 3])
             self.restriction_matrix.append(row)
 
+        print(self.restriction_matrix)
         previous_direction = 0
 
-        for x, row in enumerate(reversed(self.restriction_matrix)):
+        for x, row in enumerate(self.restriction_matrix):
             for y, cell in enumerate(row):
-                if x == 0 and y == 0:
+                if x == self.height - 1 and y == 0:
                     previous_direction = 0
+                    self.restriction_matrix[x][y] = previous_direction
                 elif cell != -1:
                     if random.random() <= 0.80:
                         self.restriction_matrix[x][y] = previous_direction
@@ -107,8 +114,10 @@ class TrafficModel(mesa.Model):
                         self.restriction_matrix[x][y] = (previous_direction - 1) % 4
                     else:
                         self.restriction_matrix[x][y] = abs(previous_direction + 1) % 4
+                    previous_direction = self.restriction_matrix[x][y]
 
-                previous_direction = self.restriction_matrix[x][y]
+        print(self.restriction_matrix)
+
 
     # method for automatically setting traffic lights
     def set_traffic_lights(self):
@@ -196,3 +205,4 @@ class TrafficModel(mesa.Model):
                 self.schedule.add(a)
                 self.grid.place_agent(a, (0, 0))
             # self.show_grid()
+            self.steps_counter += 1

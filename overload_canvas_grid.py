@@ -97,8 +97,16 @@ class CanvasGrid(VisualizationElement):
         for x in range(model.grid.width):
             for y in range(model.grid.height):
                 cell_objects = model.grid.get_cell_list_contents([(x, y)])
+                if model.restriction_matrix[model.height - x - 1][y] == -1:
+                    portrayal = self.portrayal_method(None, -1)
+                else:
+                    portrayal = self.portrayal_method(None, model.restriction_matrix[model.height - x - 1][y])
+                if portrayal:
+                    portrayal["x"] = y
+                    portrayal["y"] = x
+                    grid_state[portrayal["Layer"]].append(portrayal)
                 for obj in cell_objects:
-                    portrayal = self.portrayal_method(obj)
+                    portrayal = self.portrayal_method(obj, -2)
                     if portrayal:
                         portrayal["x"] = y
                         portrayal["y"] = x
