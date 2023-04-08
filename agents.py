@@ -22,7 +22,40 @@ class TrafficLightAgent(mesa.Agent):
             state = False
         return state
 
+    def check_for_other_vehicles(self):
+        actual_direction = self.model.get_direction(list(self.pos))
+
+        pos_x_first_corner = [1, -1, -1, 1]
+        pos_y_first_corner = [1, 1, -1, -1]
+
+        pos_x_second_corner = [-1, -1, 1, 1]
+        pos_y_second_corner = [1, -1, -1, 1]
+
+        aux = list(self.pos)
+        first_adjacent = [aux[0] + pos_x_first_corner[actual_direction], aux[1] + pos_y_first_corner[actual_direction]]
+        second_adjacent = [aux[0] + pos_x_second_corner[actual_direction], aux[1] + pos_y_second_corner[actual_direction]]
+        in_limits = (first_adjacent[0] in range(self.model.height) and first_adjacent[1] in range(self.model.width)) and \
+                        (second_adjacent[0] in range(self.model.height) and second_adjacent[1] in range(self.model.width))
+        vehicle_in_actual_cell = self.model.grid.get_cell_list_contents([tuple(aux)])
+
+        if in_limits and any(isinstance(a, agents.VehicleAgent) for a in vehicle_in_actual_cell):
+            cellmates_first = self.model.grid.get_cell_list_contents([tuple(first_adjacent)])
+            cellmates_second = self.model.grid.get_cell_list_contents([tuple(second_adjacent)])
+            if (any(isinstance(a, agents.VehicleAgent) for a in cellmates_first) or \
+            any(isinstance(a, agents.VehicleAgent) for a in cellmates_second)):
+                self.time_red_counter = 1
+                self.time_green_counter = 0
+            else:
+                self.time_red_counter = 0
+                self.time_green_counter = 1
+
     def step(self):
+        if self.model.third_scenario:
+            self.check_for_other_vehicles()
+        else:
+            self.random_time()
+
+    def random_time(self):
         if self.time_red_counter == 0:
             self.time_green_counter = max(0, self.time_green_counter - 1)
             if self.time_green_counter == 0:
@@ -60,24 +93,7 @@ class VehicleAgent(mesa.Agent):
             if definitive_possible_steps:
                 new_position = random.choice(definitive_possible_steps)
                 if self.model.is_transitable(new_position) and not self.parking:
-                    if not self.vehicle(new_position):
-                        self.model.grid.move_agent(self, tuple(new_position))
-                    elif self.model.second_scenario:
-                        definitive_possible_steps.remove(new_position)
-                        moved = False
-                        for possible in definitive_possible_steps:
-                            if self.model.is_transitable(possible) and not self.vehicle(possible):
-                                self.model.grid.move_agent(self, tuple(possible))
-                                moved = True
-                                self.model.counter += 1
-                                print(self.model.counter)
-                                break
-                            else:
-                                definitive_possible_steps.remove(possible)
-                        if not moved:
-                            self.waiting_for_cars += 1
-                    else:
-                        self.waiting_for_cars += 1
+                    self.vehicle_in_front(definitive_possible_steps, new_position)
                 elif self.counter_parking > 0:  # this allows vehicle to park in same cell it found next non
                     # transitable cell, and stays there for certain amount of time, and then try to find another
                     # direction same way as normally
@@ -88,6 +104,28 @@ class VehicleAgent(mesa.Agent):
                     self.parking = False
         elif traffic_light and not state:  # there is a traffic light, and it's red
             self.waiting_traffic_lights += 1
+
+    # this optimization technique is not usefull enough when generating not proper directions for cells,
+    # it would be interesting testing it in proper enviroments
+    def vehicle_in_front(self, definitive_possible_steps, new_position):
+        if not self.vehicle(new_position):
+            self.model.grid.move_agent(self, tuple(new_position))
+        elif self.model.second_scenario:  # only if second scenario activated, then checking the rest is usefull
+            definitive_possible_steps.remove(new_position)
+            moved = False
+            for possible in definitive_possible_steps:
+                if self.model.is_transitable(possible) and not self.vehicle(possible):
+                    self.model.grid.move_agent(self, tuple(possible))
+                    moved = True
+                    self.model.counter += 1
+                    print(self.model.counter)
+                    break
+                else:
+                    definitive_possible_steps.remove(possible)
+            if not moved:
+                self.waiting_for_cars += 1
+        else:
+            self.waiting_for_cars += 1
 
     # for vehicle to not go in the oposite direction
     def check_oposite_direction(self, pos, direction):
