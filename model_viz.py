@@ -1,6 +1,7 @@
 """
-The full code should now look like:
+Author: Enrique Vilchez Campillejo
 """
+
 import mesa
 from model import TrafficModel
 from agents import TrafficLightAgent, VehicleAgent
@@ -43,7 +44,8 @@ grid = CanvasGrid(agent_portrayal, width, height, 35 * width, 35 * height)
 server = mesa.visualization.ModularServer(
     TrafficModel, [grid, chart], "Traffic Model", {"width": width, "height": height, "max_steps": 100,
                                                    "non_transitable_cells": 10, "vehicles": 5,
-                                                   "max_waiting_time_non_transitable_in_steps": 2}
+                                                   "max_waiting_time_non_transitable_in_steps": 2,
+                                                   "second_scenario": True, "third_scenario": True}
 )
 server.port = 8521  # The default
 server.launch()

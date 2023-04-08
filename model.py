@@ -4,9 +4,8 @@ Author: Enrique Vilchez Campillejo
 
 import mesa
 from agents import TrafficLightAgent, VehicleAgent
-import matplotlib.pyplot as plt
-import numpy as np
 import random
+import json
 
 
 class TrafficModel(mesa.Model):
@@ -31,10 +30,14 @@ class TrafficModel(mesa.Model):
         return total_waiting_time
 
     def __init__(self, width, height, max_steps, non_transitable_cells,
-                 vehicles, max_waiting_time_non_transitable_in_steps):
+                 vehicles, max_waiting_time_non_transitable_in_steps,
+                 second_scenario = False, third_scenario = False):
+        self.counter = 0
         self.width = width
         self.height = height
         self.restriction_matrix = []
+        self.second_scenario = second_scenario
+        self.third_scenario = third_scenario
 
         # Inverted width and height order, because of matrix accessing purposes, like in many examples:
         #   https://snyk.io/advisor/python/Mesa/functions/mesa.space.MultiGrid
@@ -103,6 +106,8 @@ class TrafficModel(mesa.Model):
                             row.append(abs(previous_direction + 1) % 4)
                         previous_direction = row[-1]
             self.restriction_matrix.append(row)
+
+        self.restriction_matrix = [[0, 0, 0, 0, 3, 2, 1, 1, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, -1, 2, 2, -1, 2, 2, 2, 2], [2, 2, 2, 2, 2, 2, 1, 0, 0, 3, 2, 2, 2, 2, 1, 1, 1, 0, 0, 0, 0, 0, -1, 0], [0, 0, 1, 0, 3, 3, 3, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, -1], [-1, 1, -1, 1, 1, -1, 1, 1, 0, 3, -1, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 2, 2, 1], [1, 0, 0, 0, -1, 0, 0, 0, 3, 3, -1, 3, 3, 3, 3, 2, 2, 2, 1, 1, 1, 1, -1, 0], [0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 3, 3, 3, 3, 2, 1, -1, 1, 1, 1, 1, 1, 0], [0, 0, 3, 3, 3, 3, 3, 3, 2, 1, 1, -1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 3, 2, 2, 2, 2, 2, 1, 1, 1, 1, 0, 0, 0, 0], [0, 3, 3, 3, 3, 3, 3, 3, -1, 2, 2, 2, -1, 1, 1, 1, 1, 1, 0, -1, 0, 0, 0, 3], [3, 2, 2, 2, 2, 1, 1, -1, 1, 0, 3, 3, 3, -1, 3, 3, 3, 3, 3, 2, 2, 2, 2, 1], [0, 0, 3, -1, 3, 2, 2, 2, 2, 2, 2, -1, 2, 2, 2, 2, -1, 2, 2, 1, 0, 0, -1, 3]]
 
     # method for automatically setting traffic lights
     def set_traffic_lights(self):

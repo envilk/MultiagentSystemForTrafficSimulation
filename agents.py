@@ -1,3 +1,7 @@
+"""
+Author: Enrique Vilchez Campillejo
+"""
+
 import mesa
 import random
 
@@ -58,8 +62,22 @@ class VehicleAgent(mesa.Agent):
                 if self.model.is_transitable(new_position) and not self.parking:
                     if not self.vehicle(new_position):
                         self.model.grid.move_agent(self, tuple(new_position))
-                    else:  # Count waiting time for certain vehicle, because another vehicle in the cell
-                        self.waiting_for_cars = + 1
+                    elif self.model.second_scenario:
+                        definitive_possible_steps.remove(new_position)
+                        moved = False
+                        for possible in definitive_possible_steps:
+                            if self.model.is_transitable(possible) and not self.vehicle(possible):
+                                self.model.grid.move_agent(self, tuple(possible))
+                                moved = True
+                                self.model.counter += 1
+                                print(self.model.counter)
+                                break
+                            else:
+                                definitive_possible_steps.remove(possible)
+                        if not moved:
+                            self.waiting_for_cars += 1
+                    else:
+                        self.waiting_for_cars += 1
                 elif self.counter_parking > 0:  # this allows vehicle to park in same cell it found next non
                     # transitable cell, and stays there for certain amount of time, and then try to find another
                     # direction same way as normally
@@ -69,7 +87,7 @@ class VehicleAgent(mesa.Agent):
                     self.counter_parking = self.model.max_waiting_time_non_transitable_in_steps
                     self.parking = False
         elif traffic_light and not state:  # there is a traffic light, and it's red
-            self.waiting_traffic_lights = + 1
+            self.waiting_traffic_lights += 1
 
     # for vehicle to not go in the oposite direction
     def check_oposite_direction(self, pos, direction):
