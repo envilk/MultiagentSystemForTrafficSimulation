@@ -81,43 +81,28 @@ class TrafficModel(mesa.Model):
     # el vecino de la izquierda para ir recto, izq y der serían direcciones arriba
     # y abajo respectivamente)
     def generate_matrix(self):
-        # creada de la misma manera que un numpy array (matrix[width][height]), y uso de
-        # reversed para iterarla
         non_transitable_cells_counter = 0
-
-        for x in range(0, self.height):
-            row = [0] * self.width
-            for y in range(0, self.width):
+        previous_direction = 0
+        for x in range(self.height):
+            row = []
+            for y in range(self.width):
                 if x == self.height - 1 and y == 0:  # beginning cell
-                    row[y] = 0  # first direction and cell is right and transitable
+                    row.append(0)  # first direction and cell is right and transitable
+                    previous_direction = 0
                 else:
-                    if random.random() <= (self.non_transitable_cells_percentage/100) \
+                    if random.random() <= (self.non_transitable_cells_percentage / 100) \
                             and non_transitable_cells_counter < self.non_transitable_cells:
-                        row[y] = -1
+                        row.append(-1)
                         non_transitable_cells_counter += 1
                     else:
-                        row[y] = random.choice([0, 1, 2, 3])
+                        if random.random() <= 0.80:
+                            row.append(previous_direction)
+                        elif random.random() <= 0.90:
+                            row.append((previous_direction - 1) % 4)
+                        else:
+                            row.append(abs(previous_direction + 1) % 4)
+                        previous_direction = row[-1]
             self.restriction_matrix.append(row)
-
-        print(self.restriction_matrix)
-        previous_direction = 0
-
-        for x, row in enumerate(self.restriction_matrix):
-            for y, cell in enumerate(row):
-                if x == self.height - 1 and y == 0:
-                    previous_direction = 0
-                    self.restriction_matrix[x][y] = previous_direction
-                elif cell != -1:
-                    if random.random() <= 0.80:
-                        self.restriction_matrix[x][y] = previous_direction
-                    elif random.random() <= 0.90:
-                        self.restriction_matrix[x][y] = (previous_direction - 1) % 4
-                    else:
-                        self.restriction_matrix[x][y] = abs(previous_direction + 1) % 4
-                    previous_direction = self.restriction_matrix[x][y]
-
-        print(self.restriction_matrix)
-
 
     # method for automatically setting traffic lights
     def set_traffic_lights(self):
@@ -161,39 +146,17 @@ class TrafficModel(mesa.Model):
     #    plus if abs(subtraction) is 2, then actual cell needs a traffic light
     # 2: obtains the position of the cell that the one passed by parameters is pointing to
     def crossing_adjacent(self, pos):
-        crossing = False
         actual_dir = self.restriction_matrix[pos[0]][pos[1]]
-        crossing_pos = []
-        if actual_dir == 0:  # right
-            crossing_pos = [pos[0], pos[1] + 1]
-        elif actual_dir == 1:  # down
-            crossing_pos = [pos[0] + 1, pos[1]]
-        elif actual_dir == 2:  # left
-            crossing_pos = [pos[0], pos[1] - 1]
-        elif actual_dir == 3:  # up
-            crossing_pos = [pos[0] - 1, pos[1]]
-
+        adjacent_dirs = [(0, 1), (1, 0), (0, -1), (-1, 0)]
+        crossing_pos = [pos[0] + adjacent_dirs[actual_dir][0], pos[1] + adjacent_dirs[actual_dir][1]]
+        crossing = crossing_pos[0] in range(self.height) and crossing_pos[1] in range(self.width)
         # if adjacent is empty, then it is non transitable, not enter if statement
         # if adjacent is out of map limit, not enter if statement
-        if crossing_pos and crossing_pos[0] < self.height and crossing_pos[1] < self.width \
-                and crossing_pos[0] > -1 and crossing_pos[1] > -1:
+        if crossing:
             subtraction = abs(actual_dir - self.restriction_matrix[crossing_pos[0]][crossing_pos[1]])
             # 3 because of checking the case where dirs are 0 and 3 (right and up, independent of the order)
-            if subtraction == 1 or subtraction == 3:
-                crossing = True
-
+            crossing = subtraction == 1 or subtraction == 3
         return crossing, crossing_pos
-
-    def show_grid(self):
-        agent_counts = np.zeros((self.grid.width, self.grid.height))
-        for cell in self.grid.coord_iter():
-            cell_content, x, y = cell
-            agent_count = len(cell_content)
-            X = self.height - x - 1  # Access from bottom to top
-            agent_counts[X][y] = agent_count
-        plt.imshow(agent_counts, interpolation="nearest")
-        plt.colorbar()
-        plt.show()
 
     def step(self):
         if self.steps_counter < self.max_steps:
@@ -204,5 +167,4 @@ class TrafficModel(mesa.Model):
                 a = self.agents_list.pop(0)
                 self.schedule.add(a)
                 self.grid.place_agent(a, (0, 0))
-            # self.show_grid()
             self.steps_counter += 1
